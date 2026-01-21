@@ -19,10 +19,13 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { createClient } from '@/lib/supabase'
-import type { SkillNode, SkillEdge, SkillTree, NodePriority, NodeCategory } from '@/lib/types'
+import type { SkillNode, SkillEdge, SkillTree, NodePriority, NodeCategory, Habit } from '@/lib/types'
 import { SkillNodeComponent } from '@/components/skill-node'
 import { NodeDetailsPanel } from '@/components/node-details-panel'
 import { AddGoalSidebar } from '@/components/add-goal-sidebar'
+import { FocusTimer } from '@/components/focus-timer'
+import { HabitTracker } from '@/components/habit-tracker'
+import { GoalCompleteCelebration } from '@/components/level-system'
 import { ThemeSwitcher } from '@/components/theme-switcher'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
@@ -55,12 +58,14 @@ interface SkillTreeCanvasProps {
   initialTree: SkillTree
   initialNodes: SkillNode[]
   initialEdges: SkillEdge[]
+  userId?: string
 }
 
 export function SkillTreeCanvas({ 
   initialTree, 
   initialNodes, 
-  initialEdges 
+  initialEdges,
+  userId = ''
 }: SkillTreeCanvasProps) {
   const supabase = createClient()
   
@@ -73,6 +78,10 @@ export function SkillTreeCanvas({
   const [showMinimap, setShowMinimap] = useState(true)
   const [showGrid, setShowGrid] = useState(true)
   const [filterCategory, setFilterCategory] = useState<NodeCategory | 'all'>('all')
+  const [showFocusTimer, setShowFocusTimer] = useState(false)
+  const [showHabitTracker, setShowHabitTracker] = useState(false)
+  const [currentHabit, setCurrentHabit] = useState<Habit | null>(null)
+  const [celebrationData, setCelebrationData] = useState<{ title: string; xp: number } | null>(null)
 
   const calculateNodeStatuses = useCallback((nodes: SkillNode[], edges: SkillEdge[]): SkillNode[] => {
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
@@ -300,12 +309,39 @@ export function SkillTreeCanvas({
         setSelectedNode(updatedNode)
         
         if (wasNotCompleted && isNowCompleted) {
-          setShowConfetti(true)
-          setTimeout(() => setShowConfetti(false), 2000)
+          setCelebrationData({ title: updatedNode.title, xp: updatedNode.xp_reward || 10 })
+          
+          if (userId) {
+            await supabase
+              .from('user_profiles')
+              .update({
+                total_xp: supabase.rpc ? 0 : 0,
+              })
+              .eq('user_id', userId)
+
+            await supabase.rpc('add_xp', {
+              p_user_id: userId,
+              p_amount: updatedNode.xp_reward || 10,
+            }).catch(() => {
+              supabase
+                .from('user_profiles')
+                .select('total_xp')
+                .eq('user_id', userId)
+                .single()
+                .then(({ data }) => {
+                  if (data) {
+                    supabase
+                      .from('user_profiles')
+                      .update({ total_xp: (data.total_xp || 0) + (updatedNode.xp_reward || 10) })
+                      .eq('user_id', userId)
+                  }
+                })
+            })
+          }
         }
       }
     },
-    [supabase, skillNodes]
+    [supabase, skillNodes, userId]
   )
 
   const handleDeleteNode = useCallback(
@@ -339,6 +375,35 @@ export function SkillTreeCanvas({
     relationships: 'bg-pink-500',
     other: 'bg-slate-500',
   }
+
+  const handleOpenFocusTimer = useCallback(() => {
+    setShowFocusTimer(true)
+  }, [])
+
+  const handleOpenHabitTracker = useCallback(async () => {
+    if (selectedNode && userId) {
+      const { data } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('node_id', selectedNode.id)
+        .single()
+      
+      setCurrentHabit(data as Habit | null)
+      setShowHabitTracker(true)
+    }
+  }, [supabase, selectedNode, userId])
+
+  const handleFocusSessionComplete = useCallback((duration: number) => {
+    if (selectedNode) {
+      setSkillNodes(prev =>
+        prev.map(n =>
+          n.id === selectedNode.id
+            ? { ...n, time_invested_minutes: (n.time_invested_minutes || 0) + duration }
+            : n
+        )
+      )
+    }
+  }, [selectedNode])
 
   return (
     <div className="h-screen w-screen bg-background relative">
@@ -522,14 +587,52 @@ export function SkillTreeCanvas({
       />
 
       <NodeDetailsPanel
-        node={selectedNode}
-        open={isPanelOpen}
-        onClose={() => setIsPanelOpen(false)}
-        onUpdate={handleUpdateNode}
-        onDelete={handleDeleteNode}
-        canComplete={canComplete}
-        canUnlock={false}
-      />
-    </div>
-  )
-}
+          node={selectedNode}
+          open={isPanelOpen}
+          onClose={() => setIsPanelOpen(false)}
+          onUpdate={handleUpdateNode}
+          onDelete={handleDeleteNode}
+          canComplete={canComplete}
+          canUnlock={false}
+          onOpenFocusTimer={handleOpenFocusTimer}
+          onOpenHabitTracker={handleOpenHabitTracker}
+          habit={currentHabit}
+        />
+
+        <AnimatePresence>
+          {showFocusTimer && selectedNode && userId && (
+            <FocusTimer
+              nodeId={selectedNode.id}
+              nodeTitle={selectedNode.title}
+              userId={userId}
+              onSessionComplete={handleFocusSessionComplete}
+              onClose={() => setShowFocusTimer(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showHabitTracker && selectedNode && userId && (
+            <HabitTracker
+              nodeId={selectedNode.id}
+              nodeTitle={selectedNode.title}
+              userId={userId}
+              habit={currentHabit}
+              onHabitUpdate={(habit) => setCurrentHabit(habit)}
+              onClose={() => setShowHabitTracker(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {celebrationData && (
+            <GoalCompleteCelebration
+              goalTitle={celebrationData.title}
+              xpGained={celebrationData.xp}
+              onClose={() => setCelebrationData(null)}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    )
+  }

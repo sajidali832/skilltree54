@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { SkillFlowWrapper } from '@/components/skillflow-wrapper'
-import type { SkillTree, SkillNode, SkillEdge } from '@/lib/types'
+import type { SkillTree, SkillNode, SkillEdge, SkillFlowTemplate, UserProfile, UserBadge, TemplateNode, TemplateEdge } from '@/lib/types'
 
 export default async function TreePage() {
   const { userId } = await auth()
@@ -13,11 +13,33 @@ export default async function TreePage() {
 
   const supabase = createClient()
 
-  const { data: trees } = await supabase
-    .from('skill_trees')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+  const [
+    { data: trees },
+    { data: templates },
+    { data: userProfile },
+    { data: userBadges }
+  ] = await Promise.all([
+    supabase.from('skill_trees').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('skillflow_templates').select('*').eq('is_public', true).order('use_count', { ascending: false }),
+    supabase.from('user_profiles').select('*').eq('user_id', userId).single(),
+    supabase.from('user_badges').select('*').eq('user_id', userId)
+  ])
+
+  let profile = userProfile as UserProfile | null
+  if (!profile) {
+    const { data: newProfile } = await supabase
+      .from('user_profiles')
+      .insert({ user_id: userId })
+      .select()
+      .single()
+    profile = newProfile as UserProfile | null
+  }
+
+  const parsedTemplates: SkillFlowTemplate[] = (templates || []).map(t => ({
+    ...t,
+    nodes_json: typeof t.nodes_json === 'string' ? JSON.parse(t.nodes_json) : t.nodes_json as TemplateNode[],
+    edges_json: typeof t.edges_json === 'string' ? JSON.parse(t.edges_json) : t.edges_json as TemplateEdge[],
+  }))
 
   let skillFlows: (SkillTree & { nodeCount: number; completedCount: number; nodes: SkillNode[]; edges: SkillEdge[] })[] = []
 
@@ -82,5 +104,13 @@ export default async function TreePage() {
     skillFlows = flowsWithStats
   }
 
-  return <SkillFlowWrapper skillFlows={skillFlows} userId={userId} />
+  return (
+    <SkillFlowWrapper 
+      skillFlows={skillFlows} 
+      userId={userId}
+      templates={parsedTemplates}
+      userProfile={profile}
+      userBadges={(userBadges || []) as UserBadge[]}
+    />
+  )
 }

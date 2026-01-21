@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase'
-import type { SkillTree, SkillNode } from '@/lib/types'
+import type { SkillTree, SkillFlowTemplate, UserProfile, UserBadge } from '@/lib/types'
+import { calculateLevel } from '@/lib/types'
 import { ThemeSwitcher } from '@/components/theme-switcher'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { XPIndicator, UserStatsCard } from '@/components/level-system'
+import { TemplatesBrowser } from '@/components/templates-browser'
 import { 
   Plus, 
   Target, 
@@ -30,6 +33,8 @@ import {
   Code,
   Dumbbell,
   Palette,
+  LayoutTemplate,
+  Flame,
 } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
@@ -51,6 +56,9 @@ interface SkillFlowDashboardProps {
   skillFlows: (SkillTree & { nodeCount: number; completedCount: number })[]
   onSelectFlow: (flow: SkillTree) => void
   userId?: string
+  templates?: SkillFlowTemplate[]
+  userProfile?: UserProfile | null
+  userBadges?: UserBadge[]
 }
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -105,7 +113,14 @@ const availableColors = [
   { id: 'blue', label: 'Blue' },
 ]
 
-export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, userId }: SkillFlowDashboardProps) {
+export function SkillFlowDashboard({ 
+  skillFlows: initialFlows, 
+  onSelectFlow, 
+  userId,
+  templates = [],
+  userProfile: initialProfile,
+  userBadges = []
+}: SkillFlowDashboardProps) {
   const supabase = createClient()
   const [skillFlows, setSkillFlows] = useState(initialFlows)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -116,6 +131,33 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedFlow, setSelectedFlow] = useState<SkillTree | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showStats, setShowStats] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(initialProfile || null)
+
+  useEffect(() => {
+    if (!userProfile && userId) {
+      supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setUserProfile(data as UserProfile)
+          } else {
+            supabase
+              .from('user_profiles')
+              .insert({ user_id: userId })
+              .select()
+              .single()
+              .then(({ data: newProfile }) => {
+                if (newProfile) setUserProfile(newProfile as UserProfile)
+              })
+          }
+        })
+    }
+  }, [supabase, userId, userProfile])
 
   const handleCreateFlow = useCallback(async () => {
     if (!newFlowName.trim()) return
@@ -154,7 +196,7 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
       setNewFlowColor('cyan')
       setIsCreateOpen(false)
     }
-  }, [supabase, newFlowName, newFlowDescription, newFlowIcon, newFlowColor, skillFlows])
+  }, [supabase, newFlowName, newFlowDescription, newFlowIcon, newFlowColor, skillFlows, userId])
 
   const handleDeleteFlow = useCallback(async (flowId: string) => {
     await supabase.from('skill_edges').delete().eq('tree_id', flowId)
@@ -167,6 +209,15 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
     setSelectedFlow(flow)
     setIsAnimating(true)
   }
+
+  const handleUseTemplate = useCallback(() => {
+    setShowTemplates(false)
+    window.location.reload()
+  }, [])
+
+  const level = userProfile ? calculateLevel(userProfile.total_xp) : 1
+  const xp = userProfile?.total_xp || 0
+  const streak = userProfile?.current_streak || 0
 
   return (
     <>
@@ -235,6 +286,27 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showTemplates && userId && (
+          <TemplatesBrowser
+            templates={templates}
+            userId={userId}
+            onUseTemplate={handleUseTemplate}
+            onClose={() => setShowTemplates(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showStats && userProfile && (
+          <UserStatsCard
+            profile={userProfile}
+            badges={userBadges}
+            onClose={() => setShowStats(false)}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 dark:from-[#0a0f1a] dark:via-[#0d1321] dark:to-[#0a1628] relative">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-cyan-400/10 dark:bg-cyan-500/5 rounded-full blur-[128px]" />
@@ -255,6 +327,12 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <XPIndicator 
+                  xp={xp}
+                  level={level}
+                  streak={streak}
+                  onClick={() => setShowStats(true)}
+                />
                 <ThemeSwitcher />
                 <UserButton 
                   afterSignOutUrl="/"
@@ -273,18 +351,50 @@ export function SkillFlowDashboard({ skillFlows: initialFlows, onSelectFlow, use
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-12"
+            className="mb-8"
           >
-            <h2 className="text-4xl font-bold text-foreground mb-2">
-              Your <span className="bg-gradient-to-r from-cyan-500 to-emerald-500 bg-clip-text text-transparent">SkillFlows</span>
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              {skillFlows.length === 0 
-                ? "Create your first SkillFlow to start your journey"
-                : `${skillFlows.length} active ${skillFlows.length === 1 ? 'flow' : 'flows'}`
-              }
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-4xl font-bold text-foreground mb-2">
+                  Your <span className="bg-gradient-to-r from-cyan-500 to-emerald-500 bg-clip-text text-transparent">SkillFlows</span>
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                  {skillFlows.length === 0 
+                    ? "Create your first SkillFlow to start your journey"
+                    : `${skillFlows.length} active ${skillFlows.length === 1 ? 'flow' : 'flows'}`
+                  }
+                </p>
+              </div>
+              {templates.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTemplates(true)}
+                  className="gap-2"
+                >
+                  <LayoutTemplate className="w-4 h-4" />
+                  Browse Templates
+                </Button>
+              )}
+            </div>
           </motion.div>
+
+          {userProfile && streak > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 p-4 rounded-2xl bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                  <Flame className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">{streak} Day Streak!</p>
+                  <p className="text-sm text-muted-foreground">Keep it going! Complete a goal today.</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <motion.button

@@ -14,7 +14,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import type { SkillNode, ChecklistItem, NodeStatus, NodePriority, NodeCategory } from '@/lib/types'
+import type { SkillNode, ChecklistItem, NodeStatus, NodePriority, NodeCategory, Habit } from '@/lib/types'
+import { formatTime } from '@/lib/types'
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { 
@@ -35,6 +36,10 @@ import {
   BookOpen,
   Users,
   MoreHorizontal,
+  Timer,
+  Flame,
+  Clock,
+  Repeat,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -47,6 +52,9 @@ interface NodeDetailsPanelProps {
   onDelete: (nodeId: string) => void
   canComplete: boolean
   canUnlock: boolean
+  onOpenFocusTimer?: () => void
+  onOpenHabitTracker?: () => void
+  habit?: Habit | null
 }
 
 const priorities: { value: NodePriority; label: string; color: string }[] = [
@@ -72,6 +80,9 @@ export function NodeDetailsPanel({
   onUpdate,
   onDelete,
   canComplete,
+  onOpenFocusTimer,
+  onOpenHabitTracker,
+  habit,
 }: NodeDetailsPanelProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -80,6 +91,7 @@ export function NodeDetailsPanel({
   const [priority, setPriority] = useState<NodePriority>('medium')
   const [category, setCategory] = useState<NodeCategory>('personal')
   const [dueDate, setDueDate] = useState<Date | undefined>()
+  const [isHabit, setIsHabit] = useState(false)
 
   useEffect(() => {
     if (node) {
@@ -89,6 +101,7 @@ export function NodeDetailsPanel({
       setPriority(node.priority || 'medium')
       setCategory(node.category || 'personal')
       setDueDate(node.due_date ? new Date(node.due_date) : undefined)
+      setIsHabit(node.is_habit || false)
     }
   }, [node])
 
@@ -103,6 +116,7 @@ export function NodeDetailsPanel({
       priority,
       category,
       due_date: dueDate?.toISOString() || null,
+      is_habit: isHabit,
     })
   }
 
@@ -139,6 +153,7 @@ export function NodeDetailsPanel({
       category,
       due_date: dueDate?.toISOString() || null,
       status: newStatus,
+      is_habit: isHabit,
     })
   }
 
@@ -165,10 +180,18 @@ export function NodeDetailsPanel({
             <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23fff%22%20fill-opacity%3D%220.1%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
             <SheetHeader className="relative">
               <div className="flex items-center justify-between mb-2">
-                <Badge className={cn('gap-1 border', statusConfig[node.status].color)}>
-                  <StatusIcon className="w-3 h-3" />
-                  {statusConfig[node.status].label}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className={cn('gap-1 border', statusConfig[node.status].color)}>
+                    <StatusIcon className="w-3 h-3" />
+                    {statusConfig[node.status].label}
+                  </Badge>
+                  {isHabit && (
+                    <Badge className="gap-1 bg-orange-500/20 text-orange-400 border-orange-500/50">
+                      <Repeat className="w-3 h-3" />
+                      Habit
+                    </Badge>
+                  )}
+                </div>
                 {totalCount > 0 && (
                   <Badge variant="outline" className="bg-white/20 text-white border-white/30">
                     {completedCount}/{totalCount} tasks
@@ -176,16 +199,56 @@ export function NodeDetailsPanel({
                 )}
               </div>
               <SheetTitle className="text-white text-xl font-bold">{title || 'Goal Details'}</SheetTitle>
-              {dueDate && (
-                <p className="text-white/70 text-sm flex items-center gap-1">
-                  <CalendarIcon className="w-3 h-3" />
-                  Due: {format(dueDate, 'PPP')}
-                </p>
-              )}
+              <div className="flex items-center gap-4 text-white/70 text-sm">
+                {dueDate && (
+                  <span className="flex items-center gap-1">
+                    <CalendarIcon className="w-3 h-3" />
+                    Due: {format(dueDate, 'PPP')}
+                  </span>
+                )}
+                {node.time_invested_minutes > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {formatTime(node.time_invested_minutes)} invested
+                  </span>
+                )}
+                {node.xp_reward > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    +{node.xp_reward} XP
+                  </span>
+                )}
+              </div>
             </SheetHeader>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {node.status === 'available' && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={onOpenFocusTimer}
+                  className="flex-1 gap-2 h-12 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 border-cyan-500/30"
+                >
+                  <Timer className="w-4 h-4" />
+                  Focus Timer
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onOpenHabitTracker}
+                  className={cn(
+                    "flex-1 gap-2 h-12",
+                    habit 
+                      ? "bg-orange-500/10 hover:bg-orange-500/20 text-orange-500 border-orange-500/30"
+                      : "bg-muted hover:bg-muted/80 text-muted-foreground border-border"
+                  )}
+                >
+                  <Flame className="w-4 h-4" />
+                  {habit ? `${habit.current_streak} Streak` : 'Track Habit'}
+                </Button>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
@@ -207,6 +270,19 @@ export function NodeDetailsPanel({
                 className="min-h-[80px] bg-muted/50 border-border resize-none"
                 placeholder="Add a description..."
               />
+            </div>
+
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
+              <Checkbox
+                checked={isHabit}
+                onCheckedChange={(checked) => setIsHabit(checked as boolean)}
+                className="border-orange-500 data-[state=checked]:bg-orange-500"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Repeatable Habit</p>
+                <p className="text-xs text-muted-foreground">Track daily/weekly progress with streaks</p>
+              </div>
+              <Repeat className={cn("w-5 h-5", isHabit ? "text-orange-500" : "text-muted-foreground")} />
             </div>
 
             <div className="space-y-3">

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { SkillFlowDashboard } from '@/components/skillflow-dashboard'
 import { SkillTreeCanvas } from '@/components/skill-tree-canvas'
-import type { SkillTree, SkillNode, SkillEdge } from '@/lib/types'
+import type { SkillTree, SkillNode, SkillEdge, SkillFlowTemplate, UserProfile, UserBadge } from '@/lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,18 @@ interface SkillFlowWithStats extends SkillTree {
 interface SkillFlowWrapperProps {
   skillFlows: SkillFlowWithStats[]
   userId: string
+  templates?: SkillFlowTemplate[]
+  userProfile?: UserProfile | null
+  userBadges?: UserBadge[]
 }
 
-export function SkillFlowWrapper({ skillFlows: initialFlows, userId }: SkillFlowWrapperProps) {
+export function SkillFlowWrapper({ 
+  skillFlows: initialFlows, 
+  userId,
+  templates = [],
+  userProfile,
+  userBadges = []
+}: SkillFlowWrapperProps) {
   const [selectedFlow, setSelectedFlow] = useState<SkillTree | null>(null)
   const [flowData, setFlowData] = useState<{ nodes: SkillNode[]; edges: SkillEdge[] } | null>(null)
   const [showCanvas, setShowCanvas] = useState(false)
@@ -62,7 +71,8 @@ export function SkillFlowWrapper({ skillFlows: initialFlows, userId }: SkillFlow
         <SkillTreeCanvas 
           initialTree={selectedFlow} 
           initialNodes={flowData.nodes} 
-          initialEdges={flowData.edges} 
+          initialEdges={flowData.edges}
+          userId={userId}
         />
       </motion.div>
     )
@@ -80,6 +90,9 @@ export function SkillFlowWrapper({ skillFlows: initialFlows, userId }: SkillFlow
           skillFlows={initialFlows} 
           onSelectFlow={handleSelectFlow}
           userId={userId}
+          templates={templates}
+          userProfile={userProfile}
+          userBadges={userBadges}
         />
       </motion.div>
     </AnimatePresence>
