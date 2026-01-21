@@ -365,11 +365,7 @@ export function SkillTreeCanvas({
         )}
       </AnimatePresence>
       
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
-        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
-          <Logo size={40} showText textClassName="text-foreground" />
-        </div>
-      </div>
+
 
       <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
         <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
