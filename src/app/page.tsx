@@ -74,37 +74,37 @@ export default async function Home() {
               </span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-white mb-8 leading-tight tracking-tight">
-              Your goals,{' '}
-              <span className="relative">
-                <span className="bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-                  visualized
+              <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-white mb-8 leading-tight tracking-tight">
+                Your goals,{' '}
+                <span className="relative">
+                  <span className="bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                    in flow
+                  </span>
+                  <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" fill="none">
+                    <path d="M2 10C50 4 100 2 150 6C200 10 250 4 298 8" stroke="url(#gradient)" strokeWidth="4" strokeLinecap="round"/>
+                    <defs>
+                      <linearGradient id="gradient" x1="0" y1="0" x2="300" y2="0">
+                        <stop stopColor="#06b6d4"/>
+                        <stop offset="1" stopColor="#34d399"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
                 </span>
-                <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" fill="none">
-                  <path d="M2 10C50 4 100 2 150 6C200 10 250 4 298 8" stroke="url(#gradient)" strokeWidth="4" strokeLinecap="round"/>
-                  <defs>
-                    <linearGradient id="gradient" x1="0" y1="0" x2="300" y2="0">
-                      <stop stopColor="#06b6d4"/>
-                      <stop offset="1" stopColor="#34d399"/>
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </span>
-            </h1>
-            
-            <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Map your ambitions as an interactive skill tree. 
-              <span className="text-gray-800 dark:text-gray-200 font-medium"> Unlock achievements</span>, 
-              track progress, and 
-              <span className="text-gray-800 dark:text-gray-200 font-medium"> level up your life</span>.
-            </p>
+              </h1>
+              
+              <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed">
+                Map your ambitions as interactive SkillFlows. 
+                <span className="text-gray-800 dark:text-gray-200 font-medium"> Unlock achievements</span>, 
+                track progress, and 
+                <span className="text-gray-800 dark:text-gray-200 font-medium"> level up your life</span>.
+              </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
               <Link
                 href="/sign-in"
                 className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-semibold text-lg shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all hover:-translate-y-1"
               >
-                Start Building Your Tree
+                  Start Building Your SkillFlow
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 blur-xl opacity-50 group-hover:opacity-70 transition-opacity -z-10" />
               </Link>
@@ -127,7 +127,7 @@ export default async function Home() {
                       <div className="w-3 h-3 rounded-full bg-yellow-400" />
                       <div className="w-3 h-3 rounded-full bg-green-400" />
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-4">LifeTree Canvas</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-4">SkillFlow Canvas</span>
                   </div>
                   <div className="relative h-[400px] bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a0f1a] dark:to-[#111827]">
                     <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(148,163,184,0.1)_1px,transparent_1px)] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -254,11 +254,11 @@ export default async function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              {
-                step: '01',
-                title: 'Create Your Tree',
-                description: 'Start with your main life goal and branch out into sub-goals.',
-              },
+                {
+                  step: '01',
+                  title: 'Create Your SkillFlow',
+                  description: 'Start with your main life goal and branch out into sub-goals.',
+                },
               {
                 step: '02',
                 title: 'Set Dependencies',
@@ -267,7 +267,7 @@ export default async function Home() {
               {
                 step: '03',
                 title: 'Track & Celebrate',
-                description: 'Mark goals complete and watch your tree flourish with progress.',
+                description: 'Mark goals complete and watch your SkillFlow flourish with progress.',
               },
             ].map((item, i) => (
               <div key={i} className="relative">
@@ -303,7 +303,7 @@ export default async function Home() {
                 role: "Software Engineer",
               },
               {
-                quote: "I've tried dozens of goal apps. This is the first one that actually stuck. Love the skill tree concept!",
+                quote: "I've tried dozens of goal apps. This is the first one that actually stuck. Love the SkillFlow concept!",
                 author: "Emma L.",
                 role: "Entrepreneur",
               },
