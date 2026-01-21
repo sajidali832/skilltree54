@@ -1,12 +1,11 @@
+import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
 export default async function Home() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { userId } = await auth()
 
-  if (user) {
+  if (userId) {
     redirect('/tree')
   }
 
@@ -29,7 +28,7 @@ export default async function Home() {
             <span className="text-xl font-bold text-white">LifeTree</span>
           </div>
           <Link
-            href="/login"
+            href="/sign-in"
             className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-colors"
           >
             Get Started
@@ -51,7 +50,7 @@ export default async function Home() {
           </p>
           
           <Link
-            href="/login"
+            href="/sign-in"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-semibold text-lg hover:opacity-90 transition-opacity shadow-lg shadow-cyan-500/25"
           >
             Start Building Your Tree

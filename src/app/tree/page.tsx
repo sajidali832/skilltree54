@@ -1,26 +1,27 @@
+import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase'
 import { SkillTreeCanvas } from '@/components/skill-tree-canvas'
 
 export default async function TreePage() {
-  const supabase = await createClient()
+  const { userId } = await auth()
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    redirect('/login')
+  if (!userId) {
+    redirect('/sign-in')
   }
 
-  const { data: tree } = await supabase
+  const supabase = createClient()
+
+  let { data: tree } = await supabase
     .from('skill_trees')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .single()
 
   if (!tree) {
     const { data: newTree } = await supabase
       .from('skill_trees')
-      .insert({ user_id: user.id, name: 'My Life' })
+      .insert({ user_id: userId, name: 'My Life' })
       .select()
       .single()
 
@@ -34,8 +35,12 @@ export default async function TreePage() {
         position_y: 100,
       })
       
-      redirect('/tree')
+      tree = newTree
     }
+  }
+
+  if (!tree) {
+    return <div>Error creating tree</div>
   }
 
   const { data: nodes } = await supabase

@@ -7,7 +7,6 @@ import {
   Background,
   useNodesState,
   useEdgesState,
-  addEdge,
   Connection,
   Node,
   Edge,
@@ -17,15 +16,14 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase'
 import type { SkillNode, SkillEdge, SkillTree } from '@/lib/types'
 import { SkillNodeComponent } from '@/components/skill-node'
 import { NodeDetailsPanel } from '@/components/node-details-panel'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Plus, LogOut, Sparkles } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { Plus, Sparkles } from 'lucide-react'
+import { UserButton } from '@clerk/nextjs'
 
 const nodeTypes = {
   skillNode: SkillNodeComponent,
@@ -43,7 +41,6 @@ export function SkillTreeCanvas({
   initialEdges 
 }: SkillTreeCanvasProps) {
   const supabase = createClient()
-  const router = useRouter()
   
   const [skillNodes, setSkillNodes] = useState<SkillNode[]>(initialNodes)
   const [skillEdges, setSkillEdges] = useState<SkillEdge[]>(initialEdges)
@@ -260,11 +257,6 @@ export function SkillTreeCanvas({
     [supabase]
   )
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
   const canComplete = useMemo(() => {
     if (!selectedNode) return true
     const parents = skillEdges.filter(e => e.target_node_id === selectedNode.id)
@@ -303,14 +295,14 @@ export function SkillTreeCanvas({
           <Progress value={progress} className="w-32 h-2 bg-gray-700" />
           <span className="text-white font-medium text-sm">{Math.round(progress)}%</span>
         </div>
-        <Button
-          onClick={handleSignOut}
-          variant="ghost"
-          size="icon"
-          className="text-gray-400 hover:text-white hover:bg-white/10"
-        >
-          <LogOut className="w-5 h-5" />
-        </Button>
+        <UserButton 
+          afterSignOutUrl="/"
+          appearance={{
+            elements: {
+              avatarBox: 'w-9 h-9'
+            }
+          }}
+        />
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
