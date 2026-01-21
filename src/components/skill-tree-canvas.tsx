@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useState, useEffect, useMemo } from 'react'
-import Image from 'next/image'
 import {
   ReactFlow,
   Controls,
@@ -25,6 +24,7 @@ import { SkillNodeComponent } from '@/components/skill-node'
 import { NodeDetailsPanel } from '@/components/node-details-panel'
 import { AddGoalSidebar } from '@/components/add-goal-sidebar'
 import { ThemeSwitcher } from '@/components/theme-switcher'
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -367,18 +367,7 @@ export function SkillTreeCanvas({
       
       <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
         <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/30">
-              <Image 
-                src="/logo.png" 
-                alt="LifeTree" 
-                width={40} 
-                height={40}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-          <span className="text-xl font-bold text-foreground">LifeTree</span>
+          <Logo size={40} showText textClassName="text-foreground" />
         </div>
       </div>
 

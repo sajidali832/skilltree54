@@ -1,8 +1,8 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { ThemeSwitcher } from '@/components/theme-switcher'
+import { Logo } from '@/components/logo'
 import { 
   Sparkles, 
   Target, 
@@ -36,22 +36,7 @@ export default async function Home() {
         <div className="mx-4 mt-4">
           <nav className="max-w-6xl mx-auto px-6 py-3 rounded-2xl bg-white/70 dark:bg-[#111827]/70 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/30">
-                    <Image 
-                      src="/logo.png" 
-                      alt="LifeTree" 
-                      width={40} 
-                      height={40}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
-                  LifeTree
-                </span>
-              </div>
+              <Logo size={40} showText />
 
               <div className="hidden md:flex items-center gap-8">
                 <a href="#features" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
@@ -364,18 +349,7 @@ export default async function Home() {
       <footer className="relative z-10 border-t border-gray-200 dark:border-white/10 py-12">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl overflow-hidden">
-                <Image 
-                  src="/logo.png" 
-                  alt="LifeTree" 
-                  width={32} 
-                  height={32}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="font-semibold text-gray-900 dark:text-white">LifeTree</span>
-            </div>
+            <Logo size={32} showText />
             <p className="text-gray-500 dark:text-gray-400 text-sm">
               Built for dreamers, doers, and lifelong learners.
             </p>
