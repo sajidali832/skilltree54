@@ -5,6 +5,7 @@ import {
   ReactFlow,
   Controls,
   Background,
+  MiniMap,
   useNodesState,
   useEdgesState,
   Connection,
@@ -13,17 +14,38 @@ import {
   BackgroundVariant,
   ConnectionLineType,
   MarkerType,
+  Panel,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { createClient } from '@/lib/supabase'
-import type { SkillNode, SkillEdge, SkillTree } from '@/lib/types'
+import type { SkillNode, SkillEdge, SkillTree, NodePriority, NodeCategory } from '@/lib/types'
 import { SkillNodeComponent } from '@/components/skill-node'
 import { NodeDetailsPanel } from '@/components/node-details-panel'
+import { AddGoalSidebar } from '@/components/add-goal-sidebar'
+import { ThemeSwitcher } from '@/components/theme-switcher'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Plus, Sparkles } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Plus, 
+  Sparkles, 
+  Zap, 
+  Target, 
+  Trophy,
+  Grid3X3,
+  LayoutGrid,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Home,
+  Filter,
+  Search,
+  BarChart3,
+} from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
+import { cn } from '@/lib/utils'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const nodeTypes = {
   skillNode: SkillNodeComponent,
@@ -46,7 +68,11 @@ export function SkillTreeCanvas({
   const [skillEdges, setSkillEdges] = useState<SkillEdge[]>(initialEdges)
   const [selectedNode, setSelectedNode] = useState<SkillNode | null>(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isAddGoalOpen, setIsAddGoalOpen] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [showMinimap, setShowMinimap] = useState(true)
+  const [showGrid, setShowGrid] = useState(true)
+  const [filterCategory, setFilterCategory] = useState<NodeCategory | 'all'>('all')
 
   const calculateNodeStatuses = useCallback((nodes: SkillNode[], edges: SkillEdge[]): SkillNode[] => {
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
@@ -87,8 +113,13 @@ export function SkillTreeCanvas({
     [skillNodes, skillEdges, calculateNodeStatuses]
   )
 
+  const filteredNodes = useMemo(() => {
+    if (filterCategory === 'all') return computedNodes
+    return computedNodes.filter(n => n.category === filterCategory || n.is_root)
+  }, [computedNodes, filterCategory])
+
   const flowNodes: Node[] = useMemo(() => 
-    computedNodes.map(node => ({
+    filteredNodes.map(node => ({
       id: node.id,
       type: 'skillNode',
       position: { x: node.position_x, y: node.position_y },
@@ -96,32 +127,42 @@ export function SkillTreeCanvas({
         label: node.title,
         status: node.status,
         isRoot: node.is_root,
+        priority: node.priority,
+        category: node.category,
       },
     })),
-    [computedNodes]
+    [filteredNodes]
   )
 
   const flowEdges: Edge[] = useMemo(() => 
-    skillEdges.map(edge => ({
-      id: edge.id,
-      source: edge.source_node_id,
-      target: edge.target_node_id,
-      type: 'smoothstep',
-      animated: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed',
-      style: {
-        stroke: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed' 
-          ? '#34d399' 
-          : '#4b5563',
-        strokeWidth: 2,
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed' 
-          ? '#34d399' 
-          : '#4b5563',
-      },
-    })),
-    [skillEdges, computedNodes]
+    skillEdges
+      .filter(edge => {
+        if (filterCategory === 'all') return true
+        const sourceNode = computedNodes.find(n => n.id === edge.source_node_id)
+        const targetNode = computedNodes.find(n => n.id === edge.target_node_id)
+        return (sourceNode?.category === filterCategory || sourceNode?.is_root) &&
+               (targetNode?.category === filterCategory || targetNode?.is_root)
+      })
+      .map(edge => ({
+        id: edge.id,
+        source: edge.source_node_id,
+        target: edge.target_node_id,
+        type: 'smoothstep',
+        animated: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed',
+        style: {
+          stroke: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed' 
+            ? '#34d399' 
+            : '#4b5563',
+          strokeWidth: 2,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: computedNodes.find(n => n.id === edge.source_node_id)?.status === 'completed' 
+            ? '#34d399' 
+            : '#4b5563',
+        },
+      })),
+    [skillEdges, computedNodes, filterCategory]
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes)
@@ -135,10 +176,13 @@ export function SkillTreeCanvas({
     setEdges(flowEdges)
   }, [flowEdges, setEdges])
 
-  const progress = useMemo(() => {
+  const stats = useMemo(() => {
     const total = computedNodes.length
     const completed = computedNodes.filter(n => n.status === 'completed').length
-    return total > 0 ? (completed / total) * 100 : 0
+    const inProgress = computedNodes.filter(n => n.status === 'available').length
+    const locked = computedNodes.filter(n => n.status === 'locked').length
+    const progress = total > 0 ? (completed / total) * 100 : 0
+    return { total, completed, inProgress, locked, progress }
   }, [computedNodes])
 
   const onConnect = useCallback(
@@ -194,7 +238,14 @@ export function SkillTreeCanvas({
     [computedNodes]
   )
 
-  const handleAddNode = useCallback(async () => {
+  const handleAddGoal = useCallback(async (goal: {
+    title: string
+    description: string
+    priority: NodePriority
+    category: NodeCategory
+    dueDate: Date | null
+    checklist: string[]
+  }) => {
     const centerX = 400 + Math.random() * 200 - 100
     const centerY = 300 + Math.random() * 200 - 100
 
@@ -202,8 +253,17 @@ export function SkillTreeCanvas({
       .from('skill_nodes')
       .insert({
         tree_id: initialTree.id,
-        title: 'New Goal',
+        title: goal.title,
+        description: goal.description || null,
         status: 'available',
+        priority: goal.priority,
+        category: goal.category,
+        due_date: goal.dueDate?.toISOString() || null,
+        checklist: goal.checklist.map(text => ({
+          id: crypto.randomUUID(),
+          text,
+          completed: false,
+        })),
         position_x: centerX,
         position_y: centerY,
       })
@@ -226,7 +286,10 @@ export function SkillTreeCanvas({
           title: updatedNode.title,
           description: updatedNode.description,
           status: updatedNode.status,
+          priority: updatedNode.priority,
+          category: updatedNode.category,
           checklist: updatedNode.checklist,
+          due_date: updatedNode.due_date,
         })
         .eq('id', updatedNode.id)
 
@@ -267,50 +330,153 @@ export function SkillTreeCanvas({
     })
   }, [selectedNode, skillEdges, computedNodes])
 
+  const categoryColors: Record<NodeCategory, string> = {
+    personal: 'bg-violet-500',
+    career: 'bg-blue-500',
+    health: 'bg-rose-500',
+    finance: 'bg-emerald-500',
+    learning: 'bg-amber-500',
+    relationships: 'bg-pink-500',
+    other: 'bg-slate-500',
+  }
+
   return (
-    <div className="h-screen w-screen bg-[#0a0f1a] relative">
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
-          <div className="relative">
-            <Sparkles className="w-24 h-24 text-emerald-400 animate-pulse" />
-            <div className="absolute inset-0 bg-emerald-400/20 blur-3xl rounded-full" />
-          </div>
-        </div>
-      )}
+    <div className="h-screen w-screen bg-background relative">
+      <AnimatePresence>
+        {showConfetti && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center"
+          >
+            <div className="relative">
+              <Sparkles className="w-32 h-32 text-emerald-400 animate-pulse" />
+              <div className="absolute inset-0 bg-emerald-400/30 blur-3xl rounded-full animate-ping" />
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-2 rounded-full font-bold text-sm"
+              >
+                Goal Completed!
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
-            <svg className="w-6 h-6 text-[#0a0f1a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
           </div>
-          <span className="text-xl font-bold text-white">LifeTree</span>
+          <span className="text-xl font-bold text-foreground">LifeTree</span>
         </div>
       </div>
 
       <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
-        <div className="bg-[#111827]/90 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
-          <span className="text-gray-400 text-sm">Progress</span>
-          <Progress value={progress} className="w-32 h-2 bg-gray-700" />
-          <span className="text-white font-medium text-sm">{Math.round(progress)}%</span>
+        <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-medium text-muted-foreground">Completed</span>
+              <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {stats.completed}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-medium text-muted-foreground">In Progress</span>
+              <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                {stats.inProgress}
+              </Badge>
+            </div>
+          </div>
+          <div className="w-px h-8 bg-border" />
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Overall Progress</span>
+              <div className="flex items-center gap-2">
+                <Progress value={stats.progress} className="w-24 h-2" />
+                <span className="text-sm font-semibold text-foreground">{Math.round(stats.progress)}%</span>
+              </div>
+            </div>
+          </div>
         </div>
+        
+        <ThemeSwitcher />
+        
         <UserButton 
           afterSignOutUrl="/"
           appearance={{
             elements: {
-              avatarBox: 'w-9 h-9'
+              avatarBox: 'w-10 h-10 rounded-xl'
             }
           }}
         />
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute top-20 left-4 z-10">
+        <div className="flex flex-col gap-2 p-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
+          <span className="text-xs font-medium text-muted-foreground px-2">Filter</span>
+          <button
+            onClick={() => setFilterCategory('all')}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all",
+              filterCategory === 'all' 
+                ? "bg-primary/20 text-primary" 
+                : "hover:bg-muted text-muted-foreground"
+            )}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            All
+          </button>
+          {(['personal', 'career', 'health', 'finance', 'learning'] as NodeCategory[]).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilterCategory(cat)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all capitalize",
+                filterCategory === cat 
+                  ? "bg-primary/20 text-primary" 
+                  : "hover:bg-muted text-muted-foreground"
+              )}
+            >
+              <div className={cn("w-3 h-3 rounded-full", categoryColors[cat])} />
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3">
+        <div className="flex items-center gap-2 p-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowGrid(!showGrid)}
+            className={cn(showGrid && "bg-primary/20 text-primary")}
+          >
+            <Grid3X3 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowMinimap(!showMinimap)}
+            className={cn(showMinimap && "bg-primary/20 text-primary")}
+          >
+            <Maximize2 className="w-4 h-4" />
+          </Button>
+        </div>
+        
         <Button
-          onClick={handleAddNode}
-          className="bg-cyan-500 hover:bg-cyan-600 text-white gap-2 shadow-lg shadow-cyan-500/25"
+          onClick={() => setIsAddGoalOpen(true)}
+          className="h-12 px-6 bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-semibold shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/40 transition-all hover:-translate-y-0.5"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5 mr-2" />
           Add Goal
         </Button>
       </div>
@@ -330,17 +496,40 @@ export function SkillTreeCanvas({
         minZoom={0.2}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
+        className="bg-background"
       >
         <Controls 
-          className="bg-[#111827] border-white/10 rounded-xl overflow-hidden [&>button]:bg-[#111827] [&>button]:border-white/10 [&>button]:text-white [&>button:hover]:bg-white/10"
+          className="bg-card border-border rounded-xl overflow-hidden [&>button]:bg-card [&>button]:border-border [&>button]:text-foreground [&>button:hover]:bg-muted"
+          position="bottom-right"
         />
-        <Background 
-          variant={BackgroundVariant.Dots} 
-          gap={24} 
-          size={1} 
-          color="#1e293b"
-        />
+        {showGrid && (
+          <Background 
+            variant={BackgroundVariant.Dots} 
+            gap={24} 
+            size={1} 
+            className="bg-background"
+            color="var(--muted-foreground)"
+            style={{ opacity: 0.3 }}
+          />
+        )}
+        {showMinimap && (
+          <MiniMap 
+            className="bg-card border border-border rounded-xl overflow-hidden"
+            nodeColor={(node) => {
+              if (node.data.status === 'completed') return '#34d399'
+              if (node.data.status === 'available') return '#06b6d4'
+              return '#64748b'
+            }}
+            maskColor="rgba(0,0,0,0.2)"
+          />
+        )}
       </ReactFlow>
+
+      <AddGoalSidebar
+        open={isAddGoalOpen}
+        onClose={() => setIsAddGoalOpen(false)}
+        onAdd={handleAddGoal}
+      />
 
       <NodeDetailsPanel
         node={selectedNode}

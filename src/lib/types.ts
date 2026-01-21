@@ -1,4 +1,6 @@
 export type NodeStatus = 'locked' | 'available' | 'completed'
+export type NodePriority = 'low' | 'medium' | 'high'
+export type NodeCategory = 'personal' | 'career' | 'health' | 'finance' | 'learning' | 'relationships' | 'other'
 
 export interface ChecklistItem {
   id: string
@@ -12,6 +14,8 @@ export interface SkillNode {
   title: string
   description: string | null
   status: NodeStatus
+  priority: NodePriority
+  category: NodeCategory
   position_x: number
   position_y: number
   due_date: string | null
