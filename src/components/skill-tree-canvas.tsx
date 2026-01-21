@@ -409,7 +409,7 @@ export function SkillTreeCanvas({
         />
       </div>
 
-      <div className="absolute top-20 left-4 z-10">
+      <div className="absolute top-4 left-4 z-10">
         <div className="flex flex-col gap-2 p-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
           <span className="text-xs font-medium text-muted-foreground px-2">Filter</span>
           <button
