@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import {
   ReactFlow,
   Controls,
@@ -14,7 +14,8 @@ import {
   BackgroundVariant,
   ConnectionLineType,
   MarkerType,
-  Panel,
+  useReactFlow,
+  ReactFlowProvider,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -26,11 +27,12 @@ import { AddGoalSidebar } from '@/components/add-goal-sidebar'
 import { FocusTimer } from '@/components/focus-timer'
 import { HabitTracker } from '@/components/habit-tracker'
 import { GoalCompleteCelebration } from '@/components/level-system'
+import { AutoSaveIndicator } from '@/components/auto-save-indicator'
 import { ThemeSwitcher } from '@/components/theme-switcher'
-import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { useAutoSave } from '@/hooks/use-auto-save'
 import { 
   Plus, 
   Sparkles, 
@@ -38,13 +40,7 @@ import {
   Trophy,
   Grid3X3,
   LayoutGrid,
-  ZoomIn,
-  ZoomOut,
   Maximize2,
-  Home,
-  Filter,
-  Search,
-  BarChart3,
 } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { cn } from '@/lib/utils'
@@ -61,13 +57,24 @@ interface SkillTreeCanvasProps {
   userId?: string
 }
 
-export function SkillTreeCanvas({ 
+function SkillTreeCanvasInner({ 
   initialTree, 
   initialNodes, 
   initialEdges,
   userId = ''
 }: SkillTreeCanvasProps) {
   const supabase = createClient()
+  const reactFlowInstance = useReactFlow()
+  const viewportSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const { 
+    saveStatus, 
+    lastSaved, 
+    saveNodePosition, 
+    saveNodeData, 
+    saveCanvasViewport,
+    forceSave 
+  } = useAutoSave()
   
   const [skillNodes, setSkillNodes] = useState<SkillNode[]>(initialNodes)
   const [skillEdges, setSkillEdges] = useState<SkillEdge[]>(initialEdges)
@@ -82,6 +89,28 @@ export function SkillTreeCanvas({
   const [showHabitTracker, setShowHabitTracker] = useState(false)
   const [currentHabit, setCurrentHabit] = useState<Habit | null>(null)
   const [celebrationData, setCelebrationData] = useState<{ title: string; xp: number } | null>(null)
+
+  useEffect(() => {
+    if (initialTree.last_canvas_state) {
+      const canvasState = initialTree.last_canvas_state as { viewport?: { x: number; y: number; zoom: number } }
+      if (canvasState.viewport) {
+        setTimeout(() => {
+          reactFlowInstance.setViewport(canvasState.viewport!)
+        }, 100)
+      }
+    }
+  }, [initialTree.last_canvas_state, reactFlowInstance])
+
+  const handleViewportChange = useCallback(() => {
+    if (viewportSaveTimeoutRef.current) {
+      clearTimeout(viewportSaveTimeoutRef.current)
+    }
+    
+    viewportSaveTimeoutRef.current = setTimeout(() => {
+      const viewport = reactFlowInstance.getViewport()
+      saveCanvasViewport(initialTree.id, viewport)
+    }, 1000)
+  }, [reactFlowInstance, saveCanvasViewport, initialTree.id])
 
   const calculateNodeStatuses = useCallback((nodes: SkillNode[], edges: SkillEdge[]): SkillNode[] => {
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
@@ -217,13 +246,7 @@ export function SkillTreeCanvas({
 
   const onNodeDragStop = useCallback(
     async (_: React.MouseEvent, node: Node) => {
-      await supabase
-        .from('skill_nodes')
-        .update({
-          position_x: node.position.x,
-          position_y: node.position.y,
-        })
-        .eq('id', node.id)
+      saveNodePosition(node.id, node.position.x, node.position.y)
 
       setSkillNodes(prev =>
         prev.map(n =>
@@ -233,7 +256,7 @@ export function SkillTreeCanvas({
         )
       )
     },
-    [supabase]
+    [saveNodePosition]
   )
 
   const onNodeClick = useCallback(
@@ -289,63 +312,48 @@ export function SkillTreeCanvas({
       const wasNotCompleted = skillNodes.find(n => n.id === updatedNode.id)?.status !== 'completed'
       const isNowCompleted = updatedNode.status === 'completed'
       
-      const { error } = await supabase
-        .from('skill_nodes')
-        .update({
-          title: updatedNode.title,
-          description: updatedNode.description,
-          status: updatedNode.status,
-          priority: updatedNode.priority,
-          category: updatedNode.category,
-          checklist: updatedNode.checklist,
-          due_date: updatedNode.due_date,
-        })
-        .eq('id', updatedNode.id)
+      saveNodeData(updatedNode.id, {
+        title: updatedNode.title,
+        description: updatedNode.description,
+        status: updatedNode.status,
+        priority: updatedNode.priority,
+        category: updatedNode.category,
+        checklist: updatedNode.checklist,
+        due_date: updatedNode.due_date,
+        is_habit: updatedNode.is_habit,
+      })
 
-      if (!error) {
-        setSkillNodes(prev =>
-          prev.map(n => (n.id === updatedNode.id ? updatedNode : n))
-        )
-        setSelectedNode(updatedNode)
+      setSkillNodes(prev =>
+        prev.map(n => (n.id === updatedNode.id ? updatedNode : n))
+      )
+      setSelectedNode(updatedNode)
+      
+      if (wasNotCompleted && isNowCompleted) {
+        setCelebrationData({ title: updatedNode.title, xp: updatedNode.xp_reward || 10 })
         
-        if (wasNotCompleted && isNowCompleted) {
-          setCelebrationData({ title: updatedNode.title, xp: updatedNode.xp_reward || 10 })
-          
-          if (userId) {
-            await supabase
-              .from('user_profiles')
-              .update({
-                total_xp: supabase.rpc ? 0 : 0,
-              })
-              .eq('user_id', userId)
-
-            await supabase.rpc('add_xp', {
-              p_user_id: userId,
-              p_amount: updatedNode.xp_reward || 10,
-            }).catch(() => {
-              supabase
-                .from('user_profiles')
-                .select('total_xp')
-                .eq('user_id', userId)
-                .single()
-                .then(({ data }) => {
-                  if (data) {
-                    supabase
-                      .from('user_profiles')
-                      .update({ total_xp: (data.total_xp || 0) + (updatedNode.xp_reward || 10) })
-                      .eq('user_id', userId)
-                  }
-                })
+        if (userId) {
+          supabase
+            .from('user_profiles')
+            .select('total_xp')
+            .eq('user_id', userId)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                supabase
+                  .from('user_profiles')
+                  .update({ total_xp: (data.total_xp || 0) + (updatedNode.xp_reward || 10) })
+                  .eq('user_id', userId)
+              }
             })
-          }
         }
       }
     },
-    [supabase, skillNodes, userId]
+    [skillNodes, userId, saveNodeData, supabase]
   )
 
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
+      await supabase.from('skill_edges').delete().or(`source_node_id.eq.${nodeId},target_node_id.eq.${nodeId}`)
       await supabase.from('skill_nodes').delete().eq('id', nodeId)
       
       setSkillNodes(prev => prev.filter(n => n.id !== nodeId))
@@ -405,6 +413,15 @@ export function SkillTreeCanvas({
     }
   }, [selectedNode])
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      forceSave()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [forceSave])
+
   return (
     <div className="h-screen w-screen bg-background relative">
       <AnimatePresence>
@@ -429,10 +446,10 @@ export function SkillTreeCanvas({
           </motion.div>
         )}
       </AnimatePresence>
-      
-
 
       <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
+        <AutoSaveIndicator status={saveStatus} lastSaved={lastSaved} />
+        
         <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -544,6 +561,7 @@ export function SkillTreeCanvas({
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
+        onMoveEnd={handleViewportChange}
         nodeTypes={nodeTypes}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#06b6d4', strokeWidth: 2 }}
@@ -587,52 +605,60 @@ export function SkillTreeCanvas({
       />
 
       <NodeDetailsPanel
-          node={selectedNode}
-          open={isPanelOpen}
-          onClose={() => setIsPanelOpen(false)}
-          onUpdate={handleUpdateNode}
-          onDelete={handleDeleteNode}
-          canComplete={canComplete}
-          canUnlock={false}
-          onOpenFocusTimer={handleOpenFocusTimer}
-          onOpenHabitTracker={handleOpenHabitTracker}
-          habit={currentHabit}
-        />
+        node={selectedNode}
+        open={isPanelOpen}
+        onClose={() => setIsPanelOpen(false)}
+        onUpdate={handleUpdateNode}
+        onDelete={handleDeleteNode}
+        canComplete={canComplete}
+        canUnlock={false}
+        onOpenFocusTimer={handleOpenFocusTimer}
+        onOpenHabitTracker={handleOpenHabitTracker}
+        habit={currentHabit}
+      />
 
-        <AnimatePresence>
-          {showFocusTimer && selectedNode && userId && (
-            <FocusTimer
-              nodeId={selectedNode.id}
-              nodeTitle={selectedNode.title}
-              userId={userId}
-              onSessionComplete={handleFocusSessionComplete}
-              onClose={() => setShowFocusTimer(false)}
-            />
-          )}
-        </AnimatePresence>
+      <AnimatePresence>
+        {showFocusTimer && selectedNode && userId && (
+          <FocusTimer
+            nodeId={selectedNode.id}
+            nodeTitle={selectedNode.title}
+            userId={userId}
+            onSessionComplete={handleFocusSessionComplete}
+            onClose={() => setShowFocusTimer(false)}
+          />
+        )}
+      </AnimatePresence>
 
-        <AnimatePresence>
-          {showHabitTracker && selectedNode && userId && (
-            <HabitTracker
-              nodeId={selectedNode.id}
-              nodeTitle={selectedNode.title}
-              userId={userId}
-              habit={currentHabit}
-              onHabitUpdate={(habit) => setCurrentHabit(habit)}
-              onClose={() => setShowHabitTracker(false)}
-            />
-          )}
-        </AnimatePresence>
+      <AnimatePresence>
+        {showHabitTracker && selectedNode && userId && (
+          <HabitTracker
+            nodeId={selectedNode.id}
+            nodeTitle={selectedNode.title}
+            userId={userId}
+            habit={currentHabit}
+            onHabitUpdate={(habit) => setCurrentHabit(habit)}
+            onClose={() => setShowHabitTracker(false)}
+          />
+        )}
+      </AnimatePresence>
 
-        <AnimatePresence>
-          {celebrationData && (
-            <GoalCompleteCelebration
-              goalTitle={celebrationData.title}
-              xpGained={celebrationData.xp}
-              onClose={() => setCelebrationData(null)}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-    )
-  }
+      <AnimatePresence>
+        {celebrationData && (
+          <GoalCompleteCelebration
+            goalTitle={celebrationData.title}
+            xpGained={celebrationData.xp}
+            onClose={() => setCelebrationData(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export function SkillTreeCanvas(props: SkillTreeCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <SkillTreeCanvasInner {...props} />
+    </ReactFlowProvider>
+  )
+}

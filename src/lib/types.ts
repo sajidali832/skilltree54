@@ -60,8 +60,19 @@ export interface SkillTree {
   icon: string
   description: string | null
   color: string
+  last_canvas_state: { viewport?: { x: number; y: number; zoom: number }; savedAt?: number } | null
   created_at: string
   updated_at: string
+}
+
+export interface Reminder {
+  id: string
+  node_id: string
+  user_id: string
+  title: string
+  reminder_time: string
+  is_completed: boolean
+  created_at: string
 }
 
 export interface UserProfile {
