@@ -1,11 +1,11 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ThemeSwitcher } from '@/components/theme-switcher'
 import { 
   Sparkles, 
   Target, 
-  Zap, 
   Trophy, 
   ChevronRight,
   GitBranch,
@@ -38,10 +38,15 @@ export default async function Home() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                    <Zap className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/30">
+                    <Image 
+                      src="/logo.png" 
+                      alt="LifeTree" 
+                      width={40} 
+                      height={40}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
                 </div>
                 <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
                   LifeTree
@@ -360,8 +365,14 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-xl overflow-hidden">
+                <Image 
+                  src="/logo.png" 
+                  alt="LifeTree" 
+                  width={32} 
+                  height={32}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="font-semibold text-gray-900 dark:text-white">LifeTree</span>
             </div>

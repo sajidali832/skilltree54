@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState, useEffect, useMemo } from 'react'
+import Image from 'next/image'
 import {
   ReactFlow,
   Controls,
@@ -30,7 +31,6 @@ import { Badge } from '@/components/ui/badge'
 import { 
   Plus, 
   Sparkles, 
-  Zap, 
   Target, 
   Trophy,
   Grid3X3,
@@ -368,10 +368,15 @@ export function SkillTreeCanvas({
       <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
         <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-xl border border-border shadow-lg">
           <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-              <Zap className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/30">
+              <Image 
+                src="/logo.png" 
+                alt="LifeTree" 
+                width={40} 
+                height={40}
+                className="w-full h-full object-cover"
+              />
             </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
           </div>
           <span className="text-xl font-bold text-foreground">LifeTree</span>
         </div>
